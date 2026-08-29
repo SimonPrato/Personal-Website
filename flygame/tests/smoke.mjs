@@ -476,6 +476,49 @@ check('dropping more coins than the pool holds is safe', () => {
 
 // -------------------------------------------------------------------- bombers
 
+check('wing animation runs at the same rate whichever way a fly flies', () => {
+  // Drives the real draw path and reads back which sprite landed on the canvas,
+  // so this fails if the frame index is ever derived from the fly's position.
+  // The wing frame is the digit in the filename. The left/right art families
+  // are deliberately collapsed, so a wall bounce does not read as a new frame.
+  const flyFrame = () => {
+    const hit = renderer.ctx.images.filter((src) => /fliege_[1-4](_links)?\.png$/i.test(src));
+    return hit.length === 1 ? hit[0].match(/fliege_([1-4])/i)[1] : null;
+  };
+
+  const framesFor = (vx) => {
+    const g = make();
+    g.start();
+    const e = g.enemies[0];
+    for (const other of g.enemies) if (other !== e) other.alive = false;
+    Object.assign(e, {
+      alive: true, dying: false, type: 'fly', x: 600, y: 150,
+      vx, spawnFlash: 0, bombTimer: 99, animPhase: 0,
+    });
+    const seen = [];
+    for (let i = 0; i < 120; i += 1) {
+      g.spawnTimer = 999; // keep the arena to exactly one fly
+      g.update(1 / 60);
+      if (!e.alive || e.dying) return null;
+      renderer.ctx.images.length = 0;
+      g.render();
+      const f = flyFrame();
+      if (!f) return null;
+      if (seen[seen.length - 1] !== f) seen.push(f);
+    }
+    return seen;
+  };
+
+  const right = framesFor(330);
+  const left = framesFor(-330);
+  if (!right || !left) return 'could not isolate a single fly sprite per frame';
+  if (right.length < 2 || left.length < 2) return 'the wings never animated';
+  // Same elapsed time and same phase, so both headings must advance equally.
+  if (right.length !== left.length) {
+    return `rightward fly advanced ${right.length} frames, leftward ${left.length}`;
+  }
+});
+
 check('a bomber holds a constant height once it has climbed', () => {
   const g = make();
   g.start();

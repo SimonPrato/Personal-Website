@@ -443,6 +443,11 @@ export class Game {
     e.vx = -(ENEMY.BASE_SPEED + this.difficulty * ENEMY.SPEED_PER_LEVEL) * rand(0.85, 1.15);
     e.bombTimer = rand(0.8, 2.4);
     e.hovering = false;
+    // A fixed per-fly offset so the swarm does not flap in lockstep. It must
+    // not be derived from `e.x`: that changes as the fly moves, which turns a
+    // phase offset into a rate and makes the wings beat at a speed that
+    // depends on which way it is heading.
+    e.animPhase = rand(0, 1);
     e.spawnFlash = 0.35;
   }
 
@@ -681,6 +686,7 @@ export class Game {
     c.vx = rand(-90, 90);
     c.vy = -520;
     c.life = COIN.LIFETIME;
+    c.animPhase = rand(0, 1);
   }
 
   updateCoins(dt) {
@@ -903,7 +909,7 @@ export class Game {
         continue;
       }
 
-      const frame = animFrame(this.time + e.x * 0.002, 10, 4);
+      const frame = animFrame(this.time + e.animPhase, 10, 4);
       const left = e.vx < 0;
       let sprite;
       if (e.type === 'gold') {
@@ -989,7 +995,7 @@ export class Game {
   drawCoins() {
     for (const c of this.coins) {
       if (!c.alive) continue;
-      const frame = animFrame(this.time + c.x * 0.01, 12, 6);
+      const frame = animFrame(this.time + c.animPhase, 12, 6);
       const sprite = [img.coin1, img.coin2, img.coin3, img.coin4, img.coin5, img.coin6][frame];
       // Blink out during the last two seconds so a despawn is never a surprise.
       const alpha = c.life < 2 ? (Math.floor(c.life * 8) % 2 ? 0.25 : 1) : 1;

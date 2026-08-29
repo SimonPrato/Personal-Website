@@ -39,6 +39,8 @@ export class RecordingContext {
   constructor() {
     this.calls = Object.create(null);
     this.drawn = 0;
+    /** src of every image drawn since the last reset, in draw order. */
+    this.images = [];
     this._depth = 0;
   }
 
@@ -53,6 +55,7 @@ export class RecordingContext {
       throw new TypeError(`drawImage() called with a non-finite coordinate: ${rest.join(', ')}`);
     }
     this.drawn += 1;
+    this.images.push(image.src);
     this._tally('drawImage');
   }
 
