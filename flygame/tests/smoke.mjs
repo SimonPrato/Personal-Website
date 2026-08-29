@@ -476,6 +476,26 @@ check('dropping more coins than the pool holds is safe', () => {
 
 // -------------------------------------------------------------------- bombers
 
+check('a bomber holds a constant height once it has climbed', () => {
+  const g = make();
+  g.start();
+  const e = g.enemies.find((x) => x.alive);
+  for (const other of g.enemies) if (other !== e) other.alive = false;
+  Object.assign(e, { alive: true, dying: false, type: 'bomber', x: 900, y: ENEMY.SPAWN_Y, vx: -140, spawnFlash: 0, bombTimer: 99, hovering: false });
+  g.player.x = 100;
+  // Long enough to climb, then patrol for several seconds and bounce off a wall.
+  let heights = [];
+  for (let i = 0; i < 60 * 8; i += 1) {
+    g.updateEnemies(1 / 60);
+    if (e.hovering) heights.push(e.y);
+  }
+  if (heights.length < 60) return 'the bomber never settled into a hover';
+  const lo = Math.min(...heights);
+  const hi = Math.max(...heights);
+  if (hi - lo > 0.001) return `height drifted over ${(hi - lo).toFixed(1)} px while hovering`;
+  if (Math.abs(lo - ENEMY.BOMBER_ALTITUDE) > 0.001) return `hovered at ${lo}, not ${ENEMY.BOMBER_ALTITUDE}`;
+});
+
 check('a bomber drops a bomb that explodes on the ground', () => {
   const g = make();
   g.start();

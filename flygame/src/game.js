@@ -442,6 +442,7 @@ export class Game {
     e.type = this.rollEnemyType();
     e.vx = -(ENEMY.BASE_SPEED + this.difficulty * ENEMY.SPEED_PER_LEVEL) * rand(0.85, 1.15);
     e.bombTimer = rand(0.8, 2.4);
+    e.hovering = false;
     e.spawnFlash = 0.35;
   }
 
@@ -484,12 +485,23 @@ export class Game {
       }
 
       if (e.type === 'bomber') {
-        if (e.y > ENEMY.BOMBER_ALTITUDE) e.y = Math.max(ENEMY.BOMBER_ALTITUDE, e.y - ENEMY.BOMBER_CLIMB * dt);
-        else e.y = ENEMY.BOMBER_ALTITUDE + Math.sin(this.time * 2 + e.x * 0.01) * 22;
-        e.bombTimer -= dt;
-        if (e.bombTimer <= 0 && e.y <= ENEMY.BOMBER_ALTITUDE + 30) {
-          e.bombTimer = rand(1.4, 3.4) / (1 + this.difficulty * 0.2);
-          this.dropBomb(e);
+        // Climb once, then hold. The climb and the hover are kept strictly
+        // apart: the old code derived `y` from a sine while the "still
+        // climbing?" test also read `y`, so the two fought each other frame to
+        // frame and the fly juddered on the spot.
+        if (!e.hovering) {
+          e.y -= ENEMY.BOMBER_CLIMB * dt;
+          if (e.y <= ENEMY.BOMBER_ALTITUDE) {
+            e.y = ENEMY.BOMBER_ALTITUDE;
+            e.hovering = true;
+          }
+        }
+        if (e.hovering) {
+          e.bombTimer -= dt;
+          if (e.bombTimer <= 0) {
+            e.bombTimer = rand(1.4, 3.4) / (1 + this.difficulty * 0.2);
+            this.dropBomb(e);
+          }
         }
       }
 
