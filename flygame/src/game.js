@@ -14,6 +14,7 @@ import {
   BOMB,
   BULLET,
   AXE,
+  SHOCKWAVE,
   COIN,
   SCORE,
   DIFFICULTY_STEP,
@@ -84,6 +85,7 @@ export class Game {
     this.bombs = Array.from({ length: 16 }, () => ({ alive: false }));
     this.blasts = Array.from({ length: 8 }, () => ({ alive: false }));
     this.bullets = Array.from({ length: 40 }, () => ({ alive: false }));
+    this.shockwaves = Array.from({ length: SHOCKWAVE.MAX }, () => ({ alive: false }));
     this.coins = Array.from({ length: COIN.MAX }, () => ({ alive: false }));
     this.poofs = Array.from({ length: 12 }, () => ({ alive: false }));
     this.popups = Array.from({ length: 16 }, () => ({ alive: false }));
@@ -119,7 +121,7 @@ export class Game {
     this.newRecord = false;
 
     this.owned = new Set(WEAPONS.filter((w) => w.owned).map((w) => w.id));
-    for (const list of [this.enemies, this.bombs, this.blasts, this.bullets, this.coins, this.poofs, this.popups]) {
+    for (const list of [this.enemies, this.bombs, this.blasts, this.bullets, this.shockwaves, this.coins, this.poofs, this.popups]) {
       for (const e of list) e.alive = false;
     }
     this.spawnEnemy();
@@ -183,6 +185,7 @@ export class Game {
     this.updateEnemies(dt);
     this.updateBombs(dt);
     this.updateBullets(dt);
+    this.updateShockwaves(dt);
     this.updateCoins(dt);
     this.updateEffects(dt);
 
@@ -371,6 +374,46 @@ export class Game {
       }
     }
     if (hit) this.r.shake(6, this.hooks.screenShake);
+
+    this.spawnShockwave();
+  }
+
+  /** The red crescent the axe throws forward, killing what it sweeps through. */
+  spawnShockwave() {
+    const p = this.player;
+    const w = this.shockwaves.find((x) => !x.alive);
+    if (!w) return;
+    w.alive = true;
+    w.dir = p.facing;
+    w.x = p.x + PLAYER.W / 2 + p.facing * PLAYER.W * 0.4;
+    w.y = p.y + PLAYER.H * 0.52;
+    w.travelled = 0;
+    // Each wave hits a given fly once, however many frames it overlaps for.
+    w.hitList = w.hitList ?? new Set();
+    w.hitList.clear();
+  }
+
+  updateShockwaves(dt) {
+    for (const w of this.shockwaves) {
+      if (!w.alive) continue;
+      const step = SHOCKWAVE.SPEED * dt;
+      w.x += w.dir * step;
+      w.travelled += step;
+      if (w.travelled >= SHOCKWAVE.RANGE) {
+        w.alive = false;
+        continue;
+      }
+
+      const t = w.travelled / SHOCKWAVE.RANGE;
+      const halfH = (SHOCKWAVE.H * (1 + t * SHOCKWAVE.GROWTH)) / 2;
+      for (const e of this.enemies) {
+        if (!e.alive || e.dying || w.hitList.has(e)) continue;
+        if (overlaps(w.x - 22, w.y - halfH, 44, halfH * 2, e.x + ENEMY.HIT.x, e.y + ENEMY.HIT.y, ENEMY.HIT.w, ENEMY.HIT.h)) {
+          w.hitList.add(e);
+          this.killEnemy(e, false);
+        }
+      }
+    }
   }
 
   // ------------------------------------------------------------------ enemies
@@ -735,6 +778,7 @@ export class Game {
     this.drawPlayer();
     this.drawWeapon();
     this.drawBullets();
+    this.drawShockwaves();
     this.drawBlasts();
     this.drawEffects();
     this.drawShopSignpost();
@@ -852,8 +896,8 @@ export class Game {
           : [img.fly1, img.fly2, img.fly3, img.fly4][frame];
       }
 
-      // Gold flies have no left-facing art, so mirror them instead.
-      const mirror = e.type === 'gold' && left;
+      // The gold fly's only sprite faces left, so mirror it to send it right.
+      const mirror = e.type === 'gold' && !left;
       const alpha = e.spawnFlash > 0 ? 0.45 + 0.55 * (1 - e.spawnFlash / 0.35) : 1;
       this.r.sprite(sprite, e.x, e.y, ENEMY.W, ENEMY.H, mirror || alpha !== 1 ? { flip: mirror, alpha } : undefined);
     }
@@ -872,6 +916,38 @@ export class Game {
       const t = f.t / BOMB.BLAST_TIME;
       const size = BOMB.BLAST_W * (0.6 + t * 0.9);
       this.r.sprite(img.explosion, f.x - size / 2, f.y - size / 2 + 20, size, size, { alpha: 1 - t * t });
+    }
+  }
+
+  drawShockwaves() {
+    const { ctx } = this.r;
+    for (const w of this.shockwaves) {
+      if (!w.alive) continue;
+      const t = w.travelled / SHOCKWAVE.RANGE;
+      const halfH = (SHOCKWAVE.H * (1 + t * SHOCKWAVE.GROWTH)) / 2;
+      const bulge = 26 + t * 16;
+
+      ctx.save();
+      ctx.globalAlpha = clamp(1 - t, 0, 1) * 0.9;
+      ctx.translate(w.x, w.y);
+      ctx.scale(w.dir, 1);
+      ctx.lineCap = 'round';
+
+      // A crescent: a bright core inside a wider, softer red halo.
+      ctx.strokeStyle = 'rgba(255,40,40,.45)';
+      ctx.lineWidth = 20;
+      ctx.beginPath();
+      ctx.moveTo(-bulge * 0.4, -halfH);
+      ctx.quadraticCurveTo(bulge, 0, -bulge * 0.4, halfH);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#ff6a4d';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(-bulge * 0.4, -halfH * 0.9);
+      ctx.quadraticCurveTo(bulge * 0.85, 0, -bulge * 0.4, halfH * 0.9);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 

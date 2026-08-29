@@ -17,8 +17,8 @@ installDom();
 const { Game, State } = await import('../src/game.js');
 const { Input } = await import('../src/input.js');
 const { Renderer } = await import('../src/renderer.js');
-const { loadAll } = await import('../src/assets.js');
-const { GROUND_Y, PLAYER, ENEMY, VIEW, BULLET } = await import('../src/config.js');
+const { loadAll, img } = await import('../src/assets.js');
+const { GROUND_Y, PLAYER, ENEMY, VIEW, BULLET, SHOCKWAVE } = await import('../src/config.js');
 
 await loadAll();
 
@@ -327,6 +327,75 @@ check('the axe does not reach behind the player', () => {
   if (e.dying) return 'the swing hit an enemy behind the player';
 });
 
+check('the axe shockwave kills flies it sweeps through', () => {
+  const g = make();
+  g.start();
+  g.money = 10;
+  g.buy('axe');
+  const e = g.enemies.find((x) => x.alive);
+  for (const other of g.enemies) if (other !== e) other.alive = false;
+  g.player.x = 300;
+  g.player.facing = 1;
+  // Out of reach of the blade itself, but inside the wave's travel.
+  Object.assign(e, { alive: true, dying: false, type: 'fly', x: 700, y: g.player.y, vx: 0, spawnFlash: 0, bombTimer: 9 });
+  g.swingAxe();
+  if (e.dying) return 'the blade reached it directly, so the wave was not tested';
+  if (!g.shockwaves.some((w) => w.alive)) return 'no shockwave was spawned';
+  for (let i = 0; i < 60 && !e.dying; i += 1) g.updateShockwaves(1 / 60);
+  if (!e.dying) return 'the shockwave passed straight through the fly';
+});
+
+check('a shockwave scores each fly only once', () => {
+  const g = make();
+  g.start();
+  const e = g.enemies.find((x) => x.alive);
+  for (const other of g.enemies) if (other !== e) other.alive = false;
+  g.player.x = 300;
+  g.player.facing = 1;
+  Object.assign(e, { alive: true, dying: false, type: 'fly', x: 620, y: g.player.y, vx: 0, spawnFlash: 0, bombTimer: 9 });
+  g.score = 0;
+  g.spawnShockwave();
+  for (let i = 0; i < 60; i += 1) g.updateShockwaves(1 / 60);
+  const once = g.score;
+  if (once <= 0) return 'the wave never scored a kill';
+  for (let i = 0; i < 60; i += 1) g.updateShockwaves(1 / 60);
+  if (g.score !== once) return `score kept climbing: ${once} -> ${g.score}`;
+});
+
+check('shockwaves expire instead of filling the pool', () => {
+  const g = make();
+  g.start();
+  g.player.facing = 1;
+  // Ask for far more waves than the pool holds; the extras are simply dropped.
+  for (let i = 0; i < SHOCKWAVE.MAX * 3; i += 1) g.spawnShockwave();
+  if (g.shockwaves.length !== SHOCKWAVE.MAX) return `pool grew to ${g.shockwaves.length}`;
+  // Fly them well past their range.
+  for (let i = 0; i < 120; i += 1) g.updateShockwaves(1 / 60);
+  const live = g.shockwaves.filter((w) => w.alive).length;
+  if (live) return `${live} shockwaves outlived their range`;
+});
+
+check('flies face the way they fly', () => {
+  // The source art is misnamed: `Fliege_N.png` faces left. Guard the crossing
+  // in the manifest so a future tidy-up cannot silently mirror every fly.
+  const pairs = [
+    ['fly1', 'fly1L'],
+    ['fly2', 'fly2L'],
+    ['fly3', 'fly3L'],
+    ['fly4', 'fly4L'],
+    ['bomber1', 'bomber1L'],
+  ];
+  for (const [right, left] of pairs) {
+    if (!img[right] || !img[left]) return `${right}/${left} did not load`;
+    if (!/_links\.png$|_left\.png$/i.test(img[right].src)) {
+      return `${right} should use the (misnamed) left-suffixed art, got ${img[right].src}`;
+    }
+    if (/_links\.png$|_left\.png$/i.test(img[left].src)) {
+      return `${left} should use the unsuffixed art, got ${img[left].src}`;
+    }
+  }
+});
+
 check('three hits end the run', () => {
   const g = make();
   g.start();
@@ -439,6 +508,7 @@ check('rendering draws every live entity kind without a missing sprite', () => {
   Object.assign(b, { alive: true, dying: false, type: 'gold', x: 800, y: 600, vx: 100, spawnFlash: 0, bombTimer: 9 });
   Object.assign(c, { alive: true, dying: false, type: 'bomber', x: 1200, y: 220, vx: -100, spawnFlash: 0, bombTimer: 9 });
   g.dropBomb(c);
+  g.spawnShockwave();
   g.explode(600, 800);
   g.dropCoin(500, 600);
   g.spawnPoof(300, 700);

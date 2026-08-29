@@ -88,6 +88,16 @@ export const AXE = Object.freeze({
   ARC_H: 190,
 });
 
+/** The red arc the fire axe throws forward on every swing. */
+export const SHOCKWAVE = Object.freeze({
+  SPEED: 1250,
+  RANGE: 620,
+  /** Half-height of the crescent, and how much it grows over its travel. */
+  H: 110,
+  GROWTH: 0.7,
+  MAX: 6,
+});
+
 export const COIN = Object.freeze({
   W: 110,
   H: 110,
