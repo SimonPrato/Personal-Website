@@ -217,6 +217,25 @@ check('a stomp kills the enemy, scores, and bounces the player', () => {
   if (g.player.vy >= 0) return 'no bounce after the stomp';
 });
 
+check('stomping two overlapping flies kills both without a scratch', () => {
+  const g = make();
+  g.start();
+  const [a, b] = g.enemies;
+  for (const other of g.enemies) if (other !== a && other !== b) other.alive = false;
+  // Two flies sitting inside each other, directly under a falling player.
+  Object.assign(a, { alive: true, dying: false, type: 'fly', x: 800, y: ENEMY.SPAWN_Y, vx: 0, spawnFlash: 0, bombTimer: 9 });
+  Object.assign(b, { alive: true, dying: false, type: 'fly', x: 806, y: ENEMY.SPAWN_Y + 4, vx: 0, spawnFlash: 0, bombTimer: 9 });
+  g.player.x = 800;
+  g.player.y = ENEMY.SPAWN_Y - 60;
+  g.player.vy = 900;
+  g.player.invuln = 0;
+  g.update(1 / 60);
+  const killed = [a, b].filter((e) => e.dying).length;
+  if (killed !== 2) return `only ${killed} of the two stacked flies was stomped`;
+  if (g.player.lives !== PLAYER.LIVES) return `the stomp cost a life (${g.player.lives} left)`;
+  if (g.player.vy >= 0) return 'no bounce after the double stomp';
+});
+
 check('walking into an enemy costs a life instead of scoring', () => {
   const g = make();
   g.start();

@@ -457,6 +457,12 @@ export class Game {
 
   updateEnemies(dt) {
     const p = this.player;
+    // Captured before any stomp changes it, so a single fall that overlaps two
+    // stacked flies stomps both instead of squashing one and walking into the
+    // other with the bounce velocity already applied.
+    const fallVy = p.vy;
+    let stomped = false;
+
     for (const e of this.enemies) {
       if (!e.alive) continue;
 
@@ -495,14 +501,18 @@ export class Game {
       // A stomp is "falling, and last frame my feet were above the fly's
       // lower edge". The generous band is deliberate: at full falling speed the
       // player covers 25 px per frame, so a stricter test drops real stomps.
-      const stomping = p.vy > 0 && ph.y + ph.h - p.vy * dt <= eh.y + eh.h * 0.8;
+      const stomping = fallVy > 0 && ph.y + ph.h - fallVy * dt <= eh.y + eh.h * 0.8;
       if (stomping) {
         this.killEnemy(e, true);
-        p.vy = -PLAYER.JUMP_V * 0.62;
-        p.jumpBuffer = 0;
+        stomped = true;
       } else {
         this.hurtPlayer();
       }
+    }
+
+    if (stomped) {
+      p.vy = -PLAYER.JUMP_V * 0.62;
+      p.jumpBuffer = 0;
     }
   }
 
